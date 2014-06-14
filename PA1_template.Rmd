@@ -114,7 +114,7 @@ The process works well; as example, it has been taken the interval "08:15" media
 ```{r NA_example, echo = TRUE}
 new_data_median[names(new_data_median)=="08:15"]
 #before (data)
-data$steps[names(new_data_median)=="08:15"]
+data$steps[data$time=="08:15"]
 #after (new_data)
 new_data$steps[names(new_data_median)=="08:15"]
 ```

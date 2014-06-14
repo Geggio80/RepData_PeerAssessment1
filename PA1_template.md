@@ -180,7 +180,7 @@ new_data_median[names(new_data_median)=="08:15"]
 
 ```r
 #before (data)
-data$steps[names(new_data_median)=="08:15"]
+data$steps[data$time=="08:15"]
 ```
 
 ```
