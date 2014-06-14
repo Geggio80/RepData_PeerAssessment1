@@ -1,20 +1,170 @@
-# Reproducible Research: Peer Assessment 1
+
+Reproducible Research: Peer Assessment 1
+========================================
+
+## 1. The Data
+The data have been collected from a personal activity monitoring device:
+it obtains them at 5-minute intervals through out the day. The data consists of:
+
+* **steps**: number of steps taking in a 5-minute interval (missing values as NA);
+* **date**: the data on which the measurement was taken (YYYY-MM-DD format);
+* **interval**: identifier for the 5-minute interval in which measurement was taken.
+
+The dataset has stored in a comma-separated-value (CSV) file and there are a total
+of 17568 observations in this dataset, collected during October/November 2012.
 
 
-## Loading and preprocessing the data
+## 2. Loading and preprocessing the data
+From the work directory (remember that to re-run the code, change the work directory 
+with **_setwd()_** ), the data have been loaded and their format has been showed:
+
+```{r load_data, echo = TRUE}
+data <- read.csv("activity.csv",colClasses = c("numeric", "Date", "numeric"))
+head(data)
+```
+
+A variable named **time** (with **_strptime()_** ) has been added and its format 
+has been showed after having used **_format()_** to get only hours and minutes:
+
+```{r change_time, echo = TRUE}
+data$time <- strptime(paste(data$date, sapply(data$interval, formatC, width = 4, 
+                                              flag = 0)), format = "%Y-%m-%d %H%M")
+data$time <- format(data$time,format="%H:%M")
+head(data)
+```
 
 
+## 3. Mean and median total number of steps taken per day
+Ignoring rows with missing values and showing a little example,
 
-## What is mean total number of steps taken per day?
+```{r no_missing, echo = TRUE}
+data_eff <- na.omit(data)
+head(data_eff)
+```
+
+an histogram of the total number of steps taken per day has been performed:
+
+```{r histogram_no_missing, echo = TRUE}
+data_eff_sum <- tapply(data_eff$steps,data_eff$date,sum)
+hist(data_eff_sum,breaks = ceiling(max(data_eff_sum)/2500),col="red",
+     main = "HISTOGRAM ON TOTAL NUMBER OF STEPS PER DAY (NO NA)",
+     xlab = "Number of Steps",ylab = "Frequency")
+par(new=TRUE)
+plot(density(data_eff_sum),col = "blue",lwd = 2,axes=FALSE,main="",xlab="",ylab="")
+```
+
+Moreover, statistical summary has been calculated (with 5 digits for a better precision):
+
+```{r mean_median, echo = TRUE}
+summary(data_eff_sum,digits=5)
+```
+
+pointing out that mean and median differ for only 1 steps, almost the same value.
 
 
+## 4. Average daily activity pattern
+A time series plot of the 5-minute interval and the average number of steps taken (averaged across all days) has been shown:
 
-## What is the average daily activity pattern?
+```{r time_series_plot, echo = TRUE}
+data_eff_mean <- tapply(data_eff$steps,data_eff$time,mean)
+plot(data_eff_mean,type="l",col="red",xaxt="n",
+     xlab = "5-minutes Interval [00:00-23:55]",
+     ylab = "Average Number of Steps (Across All Days)",
+     main = "AVERAGE DAILY ACTIVITY PATTERN (TIME SERIES PLOT)")
+axis(1,seq(0,length(data_eff_mean),length(data_eff_mean)/12),
+     labels = names(data_eff_mean[c(seq(1,length(data_eff_mean),
+              length(data_eff_mean)/12),length(data_eff_mean))]) )
+abline(v = match(data_eff_mean[data_eff_mean==max(data_eff_mean)],data_eff_mean),
+       lwd = 2, col = "blue")
+```
+
+and the maximum number of steps is contained in 5-minute interval:
+
+```{r max_steps, echo = TRUE}
+data_eff_mean[data_eff_mean==max(data_eff_mean)]
+```
+
+as it is possible to see from **blue line** in the previous graphic.
 
 
+## 5. Imputing missing values
+The presence of several missing value ("NA") can introduce a data polarization. 
+In this dataset there are
 
-## Imputing missing values
+```{r NA_number, echo = TRUE}
+nrow(data)-nrow(data_eff)
+```
+
+number of steps _not available_ that might be replaced with a robust strategy.
+In order to do that, they have been used **medians** calculated for every 5-minute 
+intervals and a supporting variable **_aux_** has been used in a **_for-statement_**:
+
+```{r NA_substitution, echo = TRUE}
+new_data <- data
+new_data_median <- tapply(data$steps,data$time,median,na.rm=TRUE)
+for(k in 1:length(new_data_median)){
+    aux <- new_data[names(new_data_median[k]) == new_data$time,]
+    aux$steps[is.na(aux$steps)] <- new_data_median[k]
+    new_data[rownames(aux),] <- aux
+}
+```
+
+The process works well; as example, it has been taken the interval "08:15" median and its insertion has been showed:
+
+```{r NA_example, echo = TRUE}
+new_data_median[names(new_data_median)=="08:15"]
+#before (data)
+data$steps[names(new_data_median)=="08:15"]
+#after (new_data)
+new_data$steps[names(new_data_median)=="08:15"]
+```
+
+Redoing §3 analysis (histogram, mean and median) in order to detect the difference:
+
+```{r histogram_no_missing_new, echo = TRUE}
+new_data_sum <- tapply(new_data$steps,new_data$date,sum)
+hist(new_data_sum,breaks = ceiling(max(new_data_sum)/2500),col="red",
+     main = "HISTOGRAM ON TOTAL NUMBER OF STEPS PER DAY (NA SUB)",
+     xlab = "Number of Steps",ylab = "Frequency")
+par(new=TRUE)
+plot(density(new_data_sum),col = "blue",lwd = 2,axes=FALSE,main="",xlab="",ylab="")
+```
+
+```{r mean_median_new, echo = TRUE}
+summary(new_data_sum,digits=5)
+```
+
+highlighting that imputing missing data change both median (less) and mean (less), with the density line (in blue) become bimodal. Probably, that is caused by a great quantity of 0 steps values inserted in first and last day hours, as you can see from median variable:
+
+```{r show_median_values, echo = TRUE}
+new_data_median
+```
 
 
+## 6. Differences in activity pattern between weekdays and weekends
+With the help of **_weekdays()_**, it has been create a new factor variable in the dataset (the one with the filled-in missing values) to indicate if a day is a weekday or a weekend day. **_Sys.setlocale()_** has been used to get name of days in English and an example has been showed:
 
-## Are there differences in activity patterns between weekdays and weekends?
+```{r factor_week, echo = TRUE}
+Sys.setlocale("LC_TIME","English")
+new_data$day <- weekdays(new_data$date,abbreviate = "TRUE")
+new_data$week <- as.factor(ifelse(new_data$day %in% c("Sat","Sun"),"weekend","weekday"))
+# an example
+new_data[1430:1450,]
+```
+
+For a graphical difference between weekdays and weekends, **_lattice_** package has been used to perform a time series plot of the 5-minute interval and the average number of steps taken (averaged across all weekdays/weekend days):
+
+```{r time_series_plot_week, echo = TRUE}
+library(lattice)
+new_data_mean <- aggregate(new_data$steps ~ new_data$interval+new_data$week, FUN="mean")
+colnames(new_data_mean) <- c("interval","week","meanSteps")
+len = length(new_data_mean$interval)/2
+xyplot(new_data_mean$meanSteps~new_data_mean$interval|new_data_mean$week,
+       data = new_data_mean,type = "l",layout=c(1,2),
+       main = "AVERAGE DAILY ACTIVITY PATTERNS: WEEKDAY AND WEEKEND",
+       xlab = "5-minutes Interval [00:00-23:55]",
+       ylab = "Average Number of Steps (Across All Days)",
+       scales = list(x = list(
+                     labels = c("","00:00","05:00","10:00","15:00","20:00","23:55"))) )
+```
+
